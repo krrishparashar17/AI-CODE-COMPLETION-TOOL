@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Code Autocomplete</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #1e1e1e;
+            color: #e0e0e0;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        h1 {
+            text-align: center;
+            color: #61dafb;
+            margin-bottom: 2rem;
+        }
+
+        .editor-container {
+            display: flex;
+            height: 70vh;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .language-selector {
+            background-color: #252526;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+
+        select {
+            background-color: #333;
+            color: #fff;
+            border: 1px solid #444;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .editor-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .editor {
+            flex: 1;
+            background-color: #252526;
+            padding: 1rem;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 16px;
+            line-height: 1.5;
+            color: #d4d4d4;
+            border: none;
+            resize: none;
+            outline: none;
+        }
+
+        .suggestions-panel {
+            width: 300px;
+            background-color: #2d2d2d;
+            padding: 1rem;
+            overflow-y: auto;
+        }
+
+        .suggestion {
+            background-color: #3c3c3c;
+            padding: 0.75rem;
+            margin-bottom: 0.75rem;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            font-family: 'Consolas', 'Courier New', monospace;
+        }
+
+        .suggestion:hover {
+            background-color: #4b4b4b;
+        }
+
+        .suggestion-code {
+            color: #d7ba7d;
+        }
+
+        .status {
+            padding: 0.5rem;
+            background-color: #2d2d2d;
+            text-align: center;
+            font-size: 0.9rem;
+        }
+
+        .api-key-container {
+            margin-bottom: 1rem;
+        }
+
+        .api-key-input {
+            width: 100%;
+            padding: 8px;
+            border-radius: 4px;
+            background-color: #333;
+            color: #fff;
+            border: 1px solid #444;
+            margin-bottom: 0.5rem;
+        }
+
+        button {
+            background-color: #61dafb;
+            color: #000;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background-color: #4fa8d3;
+        }
+
+        .settings-toggle {
+            margin-bottom: 1rem;
+            text-align: right;
+        }
+
+        .settings {
+            background-color: #252526;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            display: none;
+        }
+
+        .settings.active {
+            display: block;
+        }
+
+        .setting-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .setting-label {
+            flex: 1;
+        }
+
+        .setting-control {
+            flex: 2;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            background-color: #333;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: #61dafb;
+            animation: spin 1s ease-in-out infinite;
+            margin-left: 10px;
+            vertical-align: middle;
+            display: none;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading .spinner {
+            display: inline-block;
+        }
+
+        .key-shortcuts {
+            margin-top: 1rem;
+            background-color: #252526;
+            padding: 1rem;
+            border-radius: 8px;
+        }
+
+        .shortcut {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+        }
+
+        kbd {
+            background-color: #333;
+            border-radius: 3px;
+            border: 1px solid #666;
+            color: #fff;
+            display: inline-block;
+            font-size: 0.85rem;
+            font-weight: 600;
+            line-height: 1;
+            padding: 2px 5px;
+            margin: 0 2px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>AI Code Autocomplete</h1>
+        
+        <div class="api-key-container">
+            <input type="text" id="apiKey" class="api-key-input" placeholder="Enter your Gemini API Key">
+            <button id="saveApiKey">Save API Key</button>
+        </div>
+
+        <div class="settings-toggle">
+            <button id="toggleSettings">Show Settings</button>
+        </div>
+
+        <div id="settings" class="settings">
+            <div class="setting-row">
+                <div class="setting-label">Temperature:</div>
+                <div class="setting-control">
+                    <input type="range" id="temperature" min="0" max="1" step="0.1" value="0.2">
+                    <span id="temperatureValue">0.2</span>
+                </div>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">Max Tokens:</div>
+                <div class="setting-control">
+                    <input type="range" id="maxTokens" min="50" max="1000" step="50" value="250">
+                    <span id="maxTokensValue">250</span>
+                </div>
+            </div>
+            <div class="setting-row">
+                <div class="setting-label">Autocomplete Delay (ms):</div>
+                <div class="setting-control">
+                    <input type="range" id="delay" min="300" max="3000" step="100" value="800">
+                    <span id="delayValue">800</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="language-selector">
+            <label for="language">Programming Language: </label>
+            <select id="language">
+                <option value="javascript">JavaScript</option>
+                <option value="html">HTML</option>
+                <option value="css">CSS</option>
+                <option value="python">Python</option>
+                <option value="java">Java</option>
+                <option value="csharp">C#</option>
+                <option value="cpp">C++</option>
+                <option value="php">PHP</option>
+                <option value="typescript">TypeScript</option>
+                <option value="go">Go</option>
+                <option value="rust">Rust</option>
+                <option value="swift">Swift</option>
+            </select>
+        </div>
+
+        <div class="editor-container">
+            <div class="editor-panel">
+                <textarea id="editor" class="editor" placeholder="Start typing your code here..."></textarea>
+                <div id="status" class="status">Ready</div>
+            </div>
+            <div id="suggestions" class="suggestions-panel">
+                <div class="no-suggestions">Suggestions will appear here as you type...</div>
+            </div>
+        </div>
+
+        <div class="key-shortcuts">
+            <h3>Keyboard Shortcuts</h3>
+            <div class="shortcut">
+                <span>Accept suggestion</span>
+                <span><kbd>Tab</kbd></span>
+            </div>
+            <div class="shortcut">
+                <span>Cycle through suggestions</span>
+                <span><kbd>↓</kbd> / <kbd>↑</kbd></span>
+            </div>
+            <div class="shortcut">
+                <span>Manually trigger completion</span>
+                <span><kbd>Ctrl</kbd> + <kbd>Space</kbd></span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // DOM Elements
+            const editor = document.getElementById('editor');
+            const suggestions = document.getElementById('suggestions');
+            const status = document.getElementById('status');
+            const languageSelect = document.getElementById('language');
+            const apiKeyInput = document.getElementById('apiKey');
+            const saveApiKeyBtn = document.getElementById('saveApiKey');
+            const toggleSettingsBtn = document.getElementById('toggleSettings');
+            const settingsPanel = document.getElementById('settings');
+            
+            // Settings elements
+            const temperatureSlider = document.getElementById('temperature');
+            const temperatureValue = document.getElementById('temperatureValue');
+            const maxTokensSlider = document.getElementById('maxTokens');
+            const maxTokensValue = document.getElementById('maxTokensValue');
+            const delaySlider = document.getElementById('delay');
+            const delayValue = document.getElementById('delayValue');
+
+            // State
+            let apiKey = localStorage.getItem('geminiApiKey') || '';
+            let language = languageSelect.value;
+            let currentSuggestions = [];
+            let selectedSuggestionIndex = -1;
+            let typingTimer;
+            let temperature = parseFloat(temperatureSlider.value);
+            let maxTokens = parseInt(maxTokensSlider.value);
+            let typingDelay = parseInt(delaySlider.value);
+
+            // Initialize
+            if (apiKey) {
+                apiKeyInput.value = apiKey;
+            }
+
+            // Event Listeners
+            saveApiKeyBtn.addEventListener('click', () => {
+                apiKey = apiKeyInput.value.trim();
+                localStorage.setItem('geminiApiKey', apiKey);
+                status.innerText = 'API Key saved';
+                setTimeout(() => {
+                    status.innerText = 'Ready';
+                }, 2000);
+            });
+
+            toggleSettingsBtn.addEventListener('click', () => {
+                settingsPanel.classList.toggle('active');
+                toggleSettingsBtn.innerText = settingsPanel.classList.contains('active') ? 'Hide Settings' : 'Show Settings';
+            });
+
+            temperatureSlider.addEventListener('input', () => {
+                temperature = parseFloat(temperatureSlider.value);
+                temperatureValue.innerText = temperature;
+            });
+
+            maxTokensSlider.addEventListener('input', () => {
+                maxTokens = parseInt(maxTokensSlider.value);
+                maxTokensValue.innerText = maxTokens;
+            });
+
+            delaySlider.addEventListener('input', () => {
+                typingDelay = parseInt(delaySlider.value);
+                delayValue.innerText = typingDelay;
+            });
+
+            languageSelect.addEventListener('change', () => {
+                language = languageSelect.value;
+            });
+
+            editor.addEventListener('keyup', (e) => {
+                // Don't trigger on special keys
+                if (['ArrowUp', 'ArrowDown', 'Tab', 'Escape', 'Enter'].includes(e.key)) {
+                    return;
+                }
+                
+                // Manual trigger with Ctrl+Space
+                if (e.ctrlKey && e.code === 'Space') {
+                    getCompletions();
+                    return;
+                }
+
+                // Debounce typing
+                clearTimeout(typingTimer);
+                typingTimer = setTimeout(() => {
+                    getCompletions();
+                }, typingDelay);
+            });
+
+            editor.addEventListener('keydown', (e) => {
+                if (currentSuggestions.length === 0) return;
+
+                if (e.key === 'Tab') {
+                    e.preventDefault();
+                    applySuggestion(selectedSuggestionIndex === -1 ? 0 : selectedSuggestionIndex);
+                } else if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    selectNextSuggestion();
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    selectPreviousSuggestion();
+                } else if (e.key === 'Escape') {
+                    clearSuggestions();
+                }
+            });
+
+            // Functions
+            function getCompletions() {
+                if (!apiKey) {
+                    status.innerText = 'Please enter an API key';
+                    return;
+                }
+
+                const code = editor.value;
+                // Get cursor position
+                const cursorPosition = editor.selectionStart;
+                const codeContext = code.substring(0, cursorPosition);
+                
+                if (codeContext.trim().length < 2) {
+                    clearSuggestions();
+                    return;
+                }
+
+                status.innerText = 'Getting suggestions...';
+                status.classList.add('loading');
+                status.innerHTML = 'Getting suggestions... <div class="spinner"></div>';
+
+                const prompt = `Given the following ${language} code context, provide 3 suggestions for what might come next. Format your response as a JSON array of objects, each with a "completion" property containing ONLY the suggested code completion. The suggestions should be ranked by likelihood.
+
+Code context:
+\`\`\`${language}
+${codeContext}
+\`\`\`
+
+Your response should be valid JSON in this format:
+[
+  {"completion": "suggestion1"},
+  {"completion": "suggestion2"},
+  {"completion": "suggestion3"}
+]`;
+
+                fetchGeminiCompletions(prompt)
+                    .then(suggestions => {
+                        displaySuggestions(suggestions);
+                        status.classList.remove('loading');
+                        status.innerText = 'Ready';
+                    })
+                    .catch(error => {
+                        console.error('Error getting completions:', error);
+                        status.classList.remove('loading');
+                        status.innerText = `Error: ${error.message}`;
+                    });
+            }
+
+            async function fetchGeminiCompletions(prompt) {
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+                
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [{text: prompt}]
+                        }],
+                        generationConfig: {
+                            temperature: temperature,
+                            maxOutputTokens: maxTokens
+                        }
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error?.message || `HTTP error ${response.status}`);
+                }
+
+                const data = await response.json();
+                
+                // Extract the text from the response
+                const textResponse = data.candidates[0].content.parts[0].text;
+                
+                // Try to parse the JSON from the text response
+                try {
+                    // Find the JSON part within the response (in case it includes explanation text)
+                    const jsonMatch = textResponse.match(/\[[\s\S]*\]/);
+                    if (jsonMatch) {
+                        return JSON.parse(jsonMatch[0]);
+                    } else {
+                        throw new Error("Could not extract JSON from response");
+                    }
+                } catch (error) {
+                    console.error("Error parsing suggestions:", error);
+                    console.log("Raw response:", textResponse);
+                    throw new Error("Failed to parse suggestions");
+                }
+            }
+
+            function displaySuggestions(suggestionsList) {
+                suggestions.innerHTML = '';
+                currentSuggestions = suggestionsList;
+                selectedSuggestionIndex = -1;
+
+                if (!suggestionsList || suggestionsList.length === 0) {
+                    suggestions.innerHTML = '<div class="no-suggestions">No suggestions available</div>';
+                    return;
+                }
+
+                suggestionsList.forEach((item, index) => {
+                    const suggestionElement = document.createElement('div');
+                    suggestionElement.className = 'suggestion';
+                    suggestionElement.innerHTML = `<pre class="suggestion-code">${escapeHtml(item.completion)}</pre>`;
+                    suggestionElement.addEventListener('click', () => {
+                        applySuggestion(index);
+                    });
+                    suggestions.appendChild(suggestionElement);
+                });
+            }
+
+            function escapeHtml(unsafe) {
+                return unsafe
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;")
+                    .replace(/"/g, "&quot;")
+                    .replace(/'/g, "&#039;");
+            }
+
+            function applySuggestion(index) {
+                if (!currentSuggestions || currentSuggestions.length === 0) return;
+                
+                const suggestion = currentSuggestions[index].completion;
+                const cursorPosition = editor.selectionStart;
+                
+                // Insert the suggestion at cursor position
+                editor.value = 
+                    editor.value.substring(0, cursorPosition) + 
+                    suggestion + 
+                    editor.value.substring(cursorPosition);
+                
+                // Move cursor to the end of the inserted suggestion
+                const newPosition = cursorPosition + suggestion.length;
+                editor.setSelectionRange(newPosition, newPosition);
+                editor.focus();
+                
+                // Clear suggestions after applying
+                clearSuggestions();
+            }
+
+            function selectNextSuggestion() {
+                if (!currentSuggestions || currentSuggestions.length === 0) return;
+                
+                const suggestionElements = suggestions.querySelectorAll('.suggestion');
+                
+                // Remove previous selection
+                if (selectedSuggestionIndex !== -1) {
+                    suggestionElements[selectedSuggestionIndex].classList.remove('selected');
+                }
+                
+                // Select next
+                selectedSuggestionIndex = (selectedSuggestionIndex + 1) % currentSuggestions.length;
+                suggestionElements[selectedSuggestionIndex].classList.add('selected');
+                suggestionElements[selectedSuggestionIndex].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+
+            function selectPreviousSuggestion() {
+                if (!currentSuggestions || currentSuggestions.length === 0) return;
+                
+                const suggestionElements = suggestions.querySelectorAll('.suggestion');
+                
+                // Remove previous selection
+                if (selectedSuggestionIndex !== -1) {
+                    suggestionElements[selectedSuggestionIndex].classList.remove('selected');
+                }
+                
+                // Select previous
+                selectedSuggestionIndex = selectedSuggestionIndex <= 0 ? 
+                    currentSuggestions.length - 1 : selectedSuggestionIndex - 1;
+                
+                suggestionElements[selectedSuggestionIndex].classList.add('selected');
+                suggestionElements[selectedSuggestionIndex].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+
+            function clearSuggestions() {
+                currentSuggestions = [];
+                selectedSuggestionIndex = -1;
+                suggestions.innerHTML = '<div class="no-suggestions">Suggestions will appear here as you type...</div>';
+            }
+        });
+    </script>
+</body>
+</html>
